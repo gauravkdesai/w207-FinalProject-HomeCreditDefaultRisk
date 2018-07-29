@@ -1,0 +1,205 @@
+
+# coding: utf-8
+
+# In[ ]:
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import warnings
+import os
+import pprint
+import zipfile
+
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import Imputer
+
+
+# In[2]:
+
+
+#Notebook lavel configurations
+warnings.filterwarnings('ignore')
+pp = pprint.PrettyPrinter(indent=4)
+
+
+# In[3]:
+
+
+
+# Read application_train.csv# Read a 
+
+zf_train = zipfile.ZipFile('/Users/zhangqing198573/Downloads/application_train.csv.zip') 
+zf_test = zipfile.ZipFile('/Users/zhangqing198573/Downloads/application_test.csv.zip') 
+app_train = pd.read_csv(zf_train.open('application_train.csv'))
+app_test = pd.read_csv(zf_test.open('application_test.csv'))
+print('Training data shape: ', app_train.shape)
+app_train.head()
+
+
+# In[5]:
+
+
+app_train = pd.get_dummies(app_train)
+app_test = pd.get_dummies(app_test)
+
+print('Training Features shape: ', app_train.shape)
+print('Testing Features shape: ', app_test.shape)
+
+
+# In[6]:
+
+
+train_labels = app_train['TARGET']
+app_train, app_test = app_train.align(app_test, join = 'inner', axis = 1)
+app_train['TARGET'] = train_labels
+
+
+# In[8]:
+
+
+app_train['TARGET'].value_counts()
+app_train['TARGET'].plot.hist()
+
+
+# In[9]:
+
+
+imputer = Imputer()
+app_train.drop('TARGET', axis=1)
+app_train_filled = imputer.fit_transform(app_train)
+app_test_filled = imputer.fit_transform(app_test)
+
+
+# In[12]:
+
+
+# making a correlation table to check the Target variable and other variable
+
+correlations = app_train.corr()['TARGET'].sort_values()
+
+# displaying the correlations 
+
+print ('Most Positive Correlations:\n', correlations.tail(15))
+print ('\nMost Negative Correlations:\n', correlations.head(15))
+
+
+# In[13]:
+
+
+app_train['DAYS_BIRTH'] = abs(app_train['DAYS_BIRTH'])
+app_train['DAYS_BIRTH'].corr(app_train['TARGET'])
+
+
+# It means the older generation, the high chance they will pay the loan
+
+# In[14]:
+
+
+plt.style.use('dark_background')
+
+plt.hist(app_train['DAYS_BIRTH']/365, edgecolor = 'blue', bins = 25)
+plt.title('Age of Client'); plt.xlabel('Age in years');
+plt.ylabel('Count');
+
+
+# In[15]:
+
+
+from sklearn.preprocessing import MinMaxScaler, Imputer
+
+# temporarily dropping target from the training data
+if 'TARGET' in app_train:
+    train = app_train.drop(columns = ['TARGET'])
+else:
+    train = app_train.copy()
+
+# feature names
+features = list(train.columns)
+test = app_test.copy()
+
+# replacing missing values with the mean values
+imputer = Imputer(strategy = 'mean')
+
+# scale each feature to 0-1 for normalization
+scaler = MinMaxScaler(feature_range = (0,1))
+
+# fitting on the training data
+imputer.fit(train)
+
+# transforming both the training and the testing data
+train = imputer.transform(train)
+test = imputer.transform(app_test)
+
+# normalizing both the sets with scaler
+scaler.fit(train)
+train = scaler.transform(train)
+test = scaler.transform(test)
+
+print('Training data shape: ', train.shape)
+print('Testing data shape: ', test.shape)
+
+
+# In[16]:
+
+
+from sklearn.linear_model import LogisticRegression
+
+# making the model with a specified regularization parameter
+log_reg = LogisticRegression(C = 0.0001)
+
+# training using the training data
+log_reg.fit(train, train_labels)
+log_reg_pred = log_reg.predict_proba(test)[:, 1]
+
+
+
+# In[17]:
+
+
+log_result = app_test[['SK_ID_CURR']]
+log_result['TARGET'] = log_reg_pred
+log_result.head()
+
+
+# In[26]:
+
+
+from sklearn.ensemble import RandomForestClassifier
+
+# making the random forest classifier
+random_forest = RandomForestClassifier(n_estimators = 100,
+                random_state = 50, verbose = 1, n_jobs = -1)
+# training on the TRAIN data
+random_forest.fit(train, train_labels)
+# making predictions on the test data
+rf_prediction = random_forest.predict_proba(test)[:,1]
+
+
+# In[19]:
+
+
+rf_result = app_test[['SK_ID_CURR']]
+rf_result['TARGET'] = rf_prediction
+rf_result.head()
+
+
+# In[27]:
+
+
+from sklearn.naive_bayes import GaussianNB
+gnb=GaussianNB()
+gnb.fit(train, train_labels)
+gnb_pred=gnb.predict_proba(test)[:,1]
+
+
+# In[ ]:
+
+
+gnb_result = app_test[['SK_ID_CURR']]
+gnb_result['TARGET'] = rf_prediction
+gnb_result.head()
+
+
+# We tried use KNN as well, however the KNN take really long time to run, so we are not be able to procide KNN yet. 
